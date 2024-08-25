@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const cookieParser = require('cookie-parser');
-const logger = require('./logger');
+const logger = require('./utils/logger');
 
 app.use(express.json());
 app.use(cookieParser()); // Use cookie parser middleware

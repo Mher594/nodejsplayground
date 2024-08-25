@@ -2,7 +2,7 @@ const winston = require('winston');
 const path = require('path');
 
 // Define log file path with a unique filename
-const logDir = path.join(__dirname, 'logs');
+const logDir = path.join(__dirname, '../logs');
 
 // Create the logs directory if it does not exist
 const fs = require('fs');
