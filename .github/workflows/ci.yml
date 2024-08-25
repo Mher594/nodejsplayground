@@ -1,4 +1,4 @@
-name: CI
+name: Run Tests
 
 on:
   push:
@@ -9,46 +9,55 @@ on:
       - main
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:latest
-        env:
-          POSTGRES_DB: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        # Ensure the database is ready before running tests
-        options: >-
-          --health-cmd "pg_isready -U $${POSTGRES_USER}"
-          --health-timeout 30s
-          --health-retries 3
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Node.js 20
-      uses: actions/setup-node@v3
-      with:
-        node-version: 20.17.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.17.0'
 
-    - name: Install dependencies
-      run: npm install
+      - name: Cache Node.js modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.npm
+            ~/.cache
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-    - name: Set up Docker Compose
-      run: docker-compose -f docker/docker-compose.yml up -d
+      - name: Install dependencies
+        run: npm install
 
-    - name: Run database setup
-      run: |
-        docker-compose -f docker/docker-compose.yml exec -T postgres psql -U your_user -d your_database -f db_scripts/users.sql
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
 
-    - name: Run tests
-      run: npm test -- --detectOpenHandles
+      - name: Docker Compose up
+        run: |
+          cd docker
+          docker-compose up -d
 
-    - name: Tear down Docker Compose
-      if: always()
-      run: docker-compose -f docker/docker-compose.yml down
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until docker-compose exec -T db pg_isready; do
+            echo "Waiting for PostgreSQL to be ready..."
+            sleep 2
+          done
+
+      - name: Run SQL setup
+        run: |
+          cd docker
+          docker-compose exec -T db psql -U postgres -f ../db_scripts/user.sql
+
+      - name: Run tests
+        run: npm test -- --detectOpenHandles
+
+      - name: Shutdown Docker Compose
+        run: |
+          cd docker
+          docker-compose down
